@@ -1,0 +1,27 @@
+{{- if .Values.persistence.enabled -}}
+{{- if .Values.persistence.djangocms.size -}}
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: {{ printf "%s-%s" .Release.Name "djangocms-pvc"  }}
+  labels:
+    app: {{ printf "%s-%s" .Release.Name "djangocms-pvc"  }}
+    chart: {{ template "djangocms.chart" . }}
+    release: {{ .Release.Name | quote }}
+    heritage: {{ .Release.Service | quote }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.djangocms.accessMode | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.djangocms.size | quote }}
+{{- if .Values.persistence.djangocms.storageClass }}
+{{- if (eq "-" .Values.persistence.djangocms.storageClass) }}
+  storageClassName: ""
+{{- else }}
+  storageClassName: {{ .Values.persistence.djangocms.storageClass | quote }}
+{{- end }}
+{{- end }}
+{{ end }}
+
+{{- end -}}

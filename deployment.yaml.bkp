@@ -1,0 +1,90 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: {{ .Values.fullName }}
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+spec:
+  replicas: {{ .Values.replicaCount }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.fullName }}
+    spec:
+      containers:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        resources:
+          limits:
+            cpu: {{ .Values.resources.limits.cpu }}
+            memory: {{ .Values.resources.limits.memory }}
+          requests:
+            cpu: {{ .Values.resources.requests.cpu }}
+            memory: {{ .Values.resources.requests.memory }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+        {{- if .Values.postgres.enabled }}
+        - name: DJANGOCMS_DB_HOST
+          value: {{ .Values.postgres.db.host | quote }}
+        - name: DJANGOCMS_DB_PORT
+          value: "5432"
+        - name: DJANGOCMS_ADMIN_DB_USER
+          value: {{ .Values.postgres.db.admin_user | quote }}
+        - name: DJANGOCMS_ADMIN_DB_PWD
+          valueFrom:
+            secretKeyRef:
+              name: {{ printf "%s-%s" .Release.Name "db_admin"  }}
+              key: db-admin-password
+        {{- else }}
+        - name: DJANGOCMS_DB_HOST
+          value: {{ .Values.database.host | quote }}
+        - name: DJANGOCMS_DB_PORT
+          value: {{ .Values.database.port | quote }}
+        - name: DJANGOCMS_ADMIN_DB_USER
+          value: {{ .Values.database.admin_user | quote }}
+        - name: DJANGOCMS_ADMIN_DB_PWD
+          valueFrom:
+            secretKeyRef:
+              name: {{ printf "%s-%s" .Release.Name "db_admin"  }}
+              key: db-admin-password
+        {{- end }}
+        - name: DJANGOCMS_DB_NAME
+          value: {{ .Values.database.name | quote }}
+        - name: DJANGOCMS_DB_USER
+          value: {{ .Values.database.user | quote }}
+        - name: DJANGOCMS_DB_PWD
+          valueFrom:
+            secretKeyRef:
+              name: {{ printf "%s-%s" .Release.Name "db" }}
+              key: db-password
+        ports:
+        - containerPort: {{ .Values.service.internalPort }}
+        volumeMounts:
+        - name: postgres-data
+          mountPath: {{ default "/var/lib/postgresql/data" .Values.database.data_mount}}
+        - name: djangocms-data
+          mountPath: /app/data
+      {{- if .Values.image.SecretName }}
+      imagePullSecrets:
+      - name: {{ .Values.image.SecretName }}
+      {{- end}}
+      volumes:
+      - name: postgres-data
+      {{- if .Values.persistence.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ printf "%s-%s" .Release.Name "postgres_pvc"  }}
+      {{- else }}
+        emptyDir: {}
+      {{- end }}
+      - name: djangocms-data
+      {{- if .Values.persistence.enabled }}
+        persistentVolumeClaim:
+          claimName:  name: {{ printf "%s-%s" .Release.Name "djangocms_pvc"  }}
+      {{- else }}
+        emptyDir: {}
+      {{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
